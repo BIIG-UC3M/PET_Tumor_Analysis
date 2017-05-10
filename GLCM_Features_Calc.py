@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Mar 17 12:54:41 2017
-
+Initial
 @author: pmacias
 """
 import GLCM_Filter_Histogram_based

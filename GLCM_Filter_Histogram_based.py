@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Mar 16 10:46:35 2017
-
+Initial
 @author: pmacias
 """
 
@@ -91,7 +91,6 @@ def create_footprint(distance, dim, direction):
     height = center+distance*angle[2]
     footprint[height,row,col]=1
    #print footprint
-    print  height - center, row - center, col -center
     return footprint
 
 
