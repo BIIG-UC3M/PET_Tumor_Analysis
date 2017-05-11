@@ -149,6 +149,11 @@ def create_GLCM(image,distance = 1,dim = 3,direction = 0, bins = 256, axis_range
         
     neigs = generic_filter(image , lambda x:x, footprint=footprint, mode='constant', cval= bad_neig)
     good_neigs = np.logical_and(good_neigs, (neigs < bad_neig))
+    h = np.histogramdd(np.column_stack((image[good_neigs].ravel(),
+                                           neigs[good_neigs].ravel())),
+                                            bins=bins,range = (axis_range[0],axis_range[1]),normed=normalization)[0]
+    #np.fill_diagonal(h,h.diagonal()*2)
+    #return h
     return np.histogramdd(np.column_stack((image[good_neigs].ravel(),
                                            neigs[good_neigs].ravel())),
                                             bins=bins,range = (axis_range[0],axis_range[1]),normed=normalization)[0]
