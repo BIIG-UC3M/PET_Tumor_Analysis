@@ -4,8 +4,10 @@ Created on Fri Mar 17 12:54:41 2017
 Initial
 @author: pmacias
 """
-import GLCM_Filter_Histogram_based
+from GLCM_Filter_Histogram_based import Image_To_GLCM, generate_default_offsets
 import numpy as np
+import warnings
+import SimpleITK
 
 def uniform_quantization(image,l = 256, g_max = 255.0, g_min = 0, out_type = np.uint8):
     """
@@ -51,7 +53,7 @@ class Texture_Features:
         self.Inverse_Difference_Normalized = features_vector[21]
 
 
-def glcm_features_extraction(image,mk,dim, distances , angles  , levels , symmetry  , include_angles_average, normed = True,axis_range = None ):
+def glcm_features_extraction(image,mk,dim, distances, angles, levels, symmetry, include_angles_average, normed = True,axis_range = None ):
     """
     2D images numpy matrices
     return a feature matrix [distances, angles, num_feats]
@@ -154,7 +156,7 @@ def glcm_features_extraction(image,mk,dim, distances , angles  , levels , symmet
             hxy = features_matrix[d,angle,8]
             p_x = p_x.reshape((num_level,1))
             p_y = p_y.reshape((num_level2,1))
-            marginals_multi = p_x*p_y.T
+            marginals_multi = p_x*p_y.Tn
             marginals_log = np.log(marginals_multi+np.spacing(1))
             hxy1 = -np.sum(g*marginals_log)
             hxy2 = -np.sum(np.multiply(marginals_multi,marginals_log))
@@ -165,3 +167,107 @@ def glcm_features_extraction(image,mk,dim, distances , angles  , levels , symmet
     return features_matrix, features_averages_overAngles_matrix
     
 
+class Haralick_Features():
+    def __init__(self,image, mask = None, offsets = None, distance = 1, bins = 256, axis_range = None, normalization = True, save_glcm_matrices = True):
+        self.n_feats = 22
+        self.image = image
+        self.mask = mask
+        self.bins = bins
+        self.normalization = normalization
+        image_dim = image.ndim if isinstance(image, np.ndarray) else image.GetDimension()
+        self.offsets = generate_default_offsets(dim = image_dim, distance = distance) if offsets is None else offsets
+        self.n_offsets = len(self.offsets)        
+        self.axis_range = axis_range
+        self.save_glcms = save_glcm_matrices
+        self.glcm_matrices = np.zeros([self.bins, self.bins, self.n_offsets]) if self.save_glcms else None
+        self.features_matrix = np.zeros((self.n_offsets,self.n_feats))
+        
+    def _compute_features_(self, offset):
+        print "Computing offset",offset
+        g = Image_To_GLCM(self.image, offset, bins = self.bins, min_max = self.axis_range,
+                          mask=self.mask, normalization=self.normalization)
+        g = g.glcm()
+        print g
+                          
+                          
+        #TODO this just works for glcm with the same number of bins in each axes
+        I, J = np.ogrid[0:self.bins, 0:self.bins]
+        I = 1+ np.array(range(self.bins)).reshape((self.bins, 1))
+        J = 1+ np.array(range(self.bins)).reshape((1, self.bins))
+        IminusJ = I-J
+        power_IminusJ = np.power(IminusJ,2)
+        abs_IminusJ = np.abs(IminusJ)
+        IplusJ = I+J
+        
+    
+        mu_x = np.apply_over_axes(np.sum, (I * g), axes=(0, 1))[0, 0]
+        mu_y = np.apply_over_axes(np.sum, (J * g), axes=(0, 1))[0, 0] 
+        diff_i = I - mu_x
+        diff_j = J - mu_y
+        std_i = np.sqrt(np.apply_over_axes(np.sum, (g * (diff_i) ** 2),axes=(0, 1))[0, 0])
+        std_j = np.sqrt(np.apply_over_axes(np.sum, (g * (diff_j) ** 2),axes=(0, 1))[0, 0])
+        cov = np.apply_over_axes(np.sum, (g * (diff_i * diff_j)),axes=(0, 1))[0, 0]
+        
+        gxy = np.zeros(2*g.shape[0]-1)   ### g x+y
+        gx_y = np.zeros(g.shape[0])  ### g x-y       
+        for i in xrange(g.shape[0]):
+            for j in xrange(g.shape[0]):
+                gxy[i+j] += g[i,j]
+                gx_y[np.abs(i-j)] += g[i,j]  
+        mx_y = (gx_y*np.arange(len(gx_y))).sum()
+        i,j = np.indices(g.shape)+1
+        ii = np.arange(len(gxy))+2
+        ii_ = np.arange(len(gx_y))
+        
+        features_vector = np.zeros((self.n_feats,))
+        
+        ### compute descriptors ###
+        features_vector[0] = np.sum(np.power(g,2)) # Angular second moment. Energy = sqrt(ASM)
+        features_vector[1] = np.apply_over_axes(np.sum, (g * power_IminusJ), axes=(0, 1))[0, 0] # Contrast
+        if std_i>1e-15 and std_j>1e-15: # handle the special case of standard deviations near zero
+            features_vector[2] = cov/(std_i*std_j)#v[2] = greycoprops(g,'correlation') # Correlation1
+        else:
+            features_vector[2] = 1
+        features_vector[3] = np.apply_over_axes(np.sum, (g* (diff_i) ** 2),axes=(0, 1))[0, 0]# Sum of squares
+        features_vector[4] = np.sum(np.divide(g,1+power_IminusJ)) #Homogenity 2
+        features_vector[5] = (gxy*ii).sum() # Sum average
+        features_vector[6] = ((ii-features_vector[5])*(ii-features_vector[5])*gxy).sum() # Sum variance
+        features_vector[7] = -1*(gxy*np.log(gxy+ np.spacing(1))).sum() # Sum entropy
+        features_vector[8] = -1*(g*np.log(g+np.spacing(1))).sum() # Entropy
+        features_vector[9] = ((ii_-mx_y)*(ii_-mx_y)*gx_y).sum() # Difference variance
+        features_vector[10] = -1*(gx_y*np.log(gx_y+np.spacing(1))).sum() # Difference entropy
+        features_vector[11] = np.sum(I*J*g) #Autocorrelation
+        features_vector[12] = (features_vector[11] - mu_x*mu_y)/(std_i*std_j) #Correlation2
+        features_vector[13] = np.sum(np.power(IplusJ-mu_x-mu_y,4)*g) #Cluster prominence
+        features_vector[14] = np.sum(np.power(IplusJ-mu_x-mu_y,3)*g) #Cluster shade
+        features_vector[15] = np.sum(abs_IminusJ*g) #Dissimilarity
+        features_vector[16] = np.sum(np.divide(g,1+abs_IminusJ)) #Homogenety 1
+        features_vector[21] = np.sum(np.divide(g,1+(abs_IminusJ/ float(self.bins) )))  #Inverse difference normalized
+        features_vector[17] = np.sum(np.divide(g,1+(power_IminusJ/float(self.bins) ))) # Inverse difference moment normalized
+        features_vector[18] = np.max(g) #maximum probability 
+        p_x = np.sum(g,axis=0); p_y = np.sum(g,axis=1) #marginals
+        hx = -np.dot(p_x, np.log(p_x+np.spacing(1)))
+        hy = -np.dot(p_y, np.log(p_y+np.spacing(1)))
+        #hxy = Entropy
+        hxy = features_vector[8]
+        p_x = p_x.reshape((self.bins,1))
+        p_y = p_y.reshape((self.bins,1))
+        marginals_multi = p_x*p_y.T
+        marginals_log = np.log(marginals_multi+np.spacing(1))
+        hxy1 = -np.sum(g*marginals_log)
+        hxy2 = -np.sum(np.multiply(marginals_multi,marginals_log))
+        features_vector[19] = (hxy - hxy1)/max(hx,hy)  #Information measure of correlation 1
+        features_vector[20] = np.power(1 - np.exp(-2*(hxy2-hxy))  ,0.5 )  #Information measure of correlation 2
+        
+        return g, features_vector
+        
+    def compute_features(self):
+        for i,offset in enumerate(self.offsets):
+            if self.save_glcms:
+                self.glcm_matrices[:,:,i], self.features_matrix[i,:] = self._compute_features_(offset)
+            else:
+                _,self.features_matrix[i,:] = self._compute_features_(offset)
+                      
+
+            
+ 

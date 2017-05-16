@@ -5,10 +5,23 @@ Initial
 @author: pmacias
 """
 
-
 import numpy as np
 from scipy.ndimage.filters import generic_filter
 import SimpleITK
+
+def generate_default_offsets(dim = 3, distance = 1): #TODO multidimensional
+    if not (1 < dim <= 3):
+        raise Exception('Incorrect number of dimesion for default offsets generation')
+    else:
+        distance = int(distance)
+            
+        if dim == 2:
+            return [(0,distance),(-distance,distance),(-distance,0),(-distance,-distance)]
+        if dim == 3:
+            return [(0,0,distance),(0,-distance,distance),(0,-distance,0),(0,-distance,-distance),
+                    (-distance,distance,0),(-distance,0,0),(-distance,-distance,0),(-distance,0,-distance),
+                    (-distance,0,distance),(-distance,distance,-distance),(-distance,-distance,distance),
+                    (-distance,-distance,-distance),(-distance,distance,distance)]
 
 class Image_To_GLCM:
     
@@ -17,7 +30,7 @@ class Image_To_GLCM:
         offset as tuple with the coordinates. numpy ordered. From the center point
         """
         self.image = SimpleITK.GetArrayFromImage(image) if isinstance(image, SimpleITK.Image) else image;
-        self.offset = None
+        self.__offset = None
         self.set_offset(offset)
         self.bins = bins
         self.mask = mask
@@ -34,8 +47,8 @@ class Image_To_GLCM:
         
         
     def __create_footprint__(self):#TODO Better as sparse matrix??
-        dim = len(self.offset)
-        offset_arr = np.array(self.offset)
+        dim = len(self.__offset)
+        offset_arr = np.array(self.__offset)
         distance = np.max(np.abs(offset_arr))
         size = np.array([2*distance+1]*dim)
         center = size/2
@@ -47,7 +60,7 @@ class Image_To_GLCM:
     def set_offset(self,offset):
         if not isinstance(offset, tuple) or self.image.ndim != len(offset) or np.max(np.abs(offset)) > self.image.shape[np.argmax(np.abs(offset))]/2:
             raise Exception('Incorrect offset offset as tuple with the coordinates')
-        self.offset = offset
+        self.__offset = offset
         
     def glcm(self):
         """
@@ -71,21 +84,5 @@ class Image_To_GLCM:
         return np.histogramdd(np.column_stack((self.image[good_neigs].ravel(),
                                                neigs[good_neigs].ravel())),
                                                 bins=self.bins,range = tuple([min_max for min_max in self.min_max]),normed=self.normalization)[0]
-        
 
-    def spherical_to_cartesian(theta, phi,r=1):#TODO Esto está mal
-        """
-        In radians
-        r = distance
-        theta = azimuth
-        phi = polar
-        """
-        x =  int(np.rint(np.sin(phi)*np.cos(theta)))
-        y =  int(np.rint(np.sin(theta))*np.rint(np.sin(phi)) )
-        z =  int(np.cos(theta))
-        return np.array((x,y,z)) * r
-        
-    
-    def generate_default_offsets(dim = 3, distance = 1):
-    
-    
+
