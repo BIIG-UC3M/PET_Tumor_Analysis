@@ -153,6 +153,9 @@ class Haralick_Features():
                 self.glcm_matrices[:,:,i], self.features_matrix[i,:] = self._compute_features_(offset)
             else:
                 _,self.features_matrix[i,:] = self._compute_features_(offset)
+                
+    def get_features_at_offset(self, n_offset):
+        return Texture_Features(self,0)
                       
 
             
