@@ -8,6 +8,21 @@ from GLCM_Filter_Histogram_based import Image_To_GLCM, generate_default_offsets
 import numpy as np
 import warnings
 import SimpleITK
+from multiprocessing import  Process, Pool
+
+_HARALICK = "HARALICK"
+_OFFSETWA = "offset_workaround_parrallel_computing"
+
+def compute_harlaick_feats(haralick_dic):
+    print "here"
+    Haralick_Features._compute_features_(offset)
+
+def compute_fake(haralick_dic):
+    "Print in fake"
+    Haralick = haralick_dic['HARALICK']
+    
+    return  Haralick._compute_features_(haralick_dic["offset_workaround_parrallel_computing"])
+    
 
 def uniform_quantization(image,l = 256, g_max = 255.0, g_min = 0, out_type = np.uint8):
     """
@@ -22,6 +37,7 @@ def uniform_quantization(image,l = 256, g_max = 255.0, g_min = 0, out_type = np.
     k2 = 1 - k1*g_min
     return np.floor(image*k1+k2).astype(out_type)
 
+
 class Texture_Features:
     glcm_feats = ['Energy','Contrast','Correlation1','SumOfSquares','Homogenity2',
     'SumAverage','SumVariance','SumEntropy','Entropy','DifferenceVariance'
@@ -29,7 +45,10 @@ class Texture_Features:
     ,'Dissimilarity','Homogenity1','InverseDifferentMomentNormalized','MaximumProbability','InformationMeasureCorrelation1'
     ,'InformationMeasureCorrelation2','InverseDifferenceNormalized']
     def __init__(self,Haralick_Features, n_offset = 0):
-        features_vector = Haralick_Features.features_matrix[n_offset]
+        if n_offset < len(Haralick_Features.n_offsets):
+            features_vector = Haralick_Features.features_matrix[n_offset]
+        else:
+            features_vector = Haralick_Features.get_average_features()
         self.Energy = features_vector[0]
         self.Contrast = features_vector[1]
         self.Correlation1 = features_vector[2]
@@ -54,10 +73,19 @@ class Texture_Features:
         self.Inverse_Difference_Normalized = features_vector[21]
 
 class Haralick_Features():
-    def __init__(self,image, mask = None, offsets = None, distance = 1, bins = 256, axis_range = None, normalization = True, save_glcm_matrices = True):
+    def __init__(self,image, mask = None, offsets = None, distance = 1, bins = 256, axis_range = None, normalization = True, save_glcm_matrices = True):      
         self.n_feats = 22
-        self.image = image
-        self.mask = mask
+        
+        if mask is None:
+            self.mask = mask
+            self.image = image
+        else:
+            ## Crop the image, can save a lot of memory. Indices by pointer
+            b = np.where(mask)
+            crop = [range(np.min(z), np.max(z)+1)  for z in b]
+            self.mask = mask[np.ix_( *crop )]
+            self.image = image[np.ix_( *crop )]
+            
         self.bins = bins
         self.normalization = normalization
         image_dim = image.ndim if isinstance(image, np.ndarray) else image.GetDimension()
@@ -69,11 +97,10 @@ class Haralick_Features():
         self.features_matrix = np.zeros((self.n_offsets,self.n_feats))
         
     def _compute_features_(self, offset):
-        print "Computing offset",offset
+        #print "Computing offset",offset
         g = Image_To_GLCM(self.image, offset, bins = self.bins, min_max = self.axis_range,
                           mask=self.mask, normalization=self.normalization)
         g = g.glcm()
-        print g
                           
                           
         #TODO this just works for glcm with the same number of bins in each axes
@@ -143,20 +170,52 @@ class Haralick_Features():
         hxy1 = -np.sum(g*marginals_log)
         hxy2 = -np.sum(np.multiply(marginals_multi,marginals_log))
         features_vector[19] = (hxy - hxy1)/max(hx,hy)  #Information measure of correlation 1
-        features_vector[20] = np.power(1 - np.exp(-2*(hxy2-hxy))  ,0.5 )  #Information measure of correlation 2
+        #TO aovid sqrt of negative numbers its took the ||hxy2-hxy||. Not a clue about the best approach to this
+        features_vector[20] = np.power(1 - np.exp(-2*(np.abs(hxy2-hxy))), 0.5 )  #Information measure of correlation 2
+        print  (hxy2-hxy)
         
         return g, features_vector
-        
+    """    
     def compute_features(self):
         for i,offset in enumerate(self.offsets):
             if self.save_glcms:
                 self.glcm_matrices[:,:,i], self.features_matrix[i,:] = self._compute_features_(offset)
             else:
                 _,self.features_matrix[i,:] = self._compute_features_(offset)
+    """
+    def compute_features(self):
+        pool = Pool(processes=self.n_offsets)
+        ds = [{_HARALICK :self, _OFFSETWA:offset} for offset in self.offsets]
+        i = 0
+        for res in pool.map(compute_fake,ds):
+            if self.save_glcms:
+                self.glcm_matrices[:,:,i], self.features_matrix[i,:] = res
+            else:
+                self.features_matrix[i,:] = res[1]
+            i +=1
+        
+
+       
+                
+    def get_average_features(self):
+        return np.nanmean(self.features_matrix, axis=0)
                 
     def get_features_at_offset(self, n_offset):
         return Texture_Features(self,0)
-                      
+
+import time
+image_test = np.random.randint(-1024,1024, size = (200,200,200))
+#image_test = np.random.randint(0,high=4, size=(100,100,100))
+mask = np.zeros((200,200,200))
+mask[50:-50,50:-50,50:-50] = np.random.randint(0,2, size=(100,100,100))
+har = Haralick_Features(image_test, bins=256, normalization=True,  mask=mask, save_glcm_matrices=True)
+print har.image.shape
+start = time.time()
+har.compute_features()
+print 'process time',time.time() - start
+print har.get_average_features()
+
+                
 
             
  
