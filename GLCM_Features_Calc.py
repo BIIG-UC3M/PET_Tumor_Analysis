@@ -9,6 +9,7 @@ import numpy as np
 import warnings
 import SimpleITK
 from multiprocessing import  Process, Pool
+import time
 
 _HARALICK = "HARALICK"
 _OFFSETWA = "offset_workaround_parrallel_computing"
@@ -100,9 +101,11 @@ class Haralick_Features():
         #print "Computing offset",offset
         g = Image_To_GLCM(self.image, offset, bins = self.bins, min_max = self.axis_range,
                           mask=self.mask, normalization=self.normalization)
+        #start = time.time()
         g = g.glcm()
+        #print 'glcm time',offset, time.time() - start
                           
-                          
+        #start = time.time()              
         #TODO this just works for glcm with the same number of bins in each axes
         I, J = np.ogrid[0:self.bins, 0:self.bins]
         I = 1+ np.array(range(self.bins)).reshape((self.bins, 1))
@@ -172,27 +175,29 @@ class Haralick_Features():
         features_vector[19] = (hxy - hxy1)/max(hx,hy)  #Information measure of correlation 1
         #TO aovid sqrt of negative numbers its took the ||hxy2-hxy||. Not a clue about the best approach to this
         features_vector[20] = np.power(1 - np.exp(-2*(np.abs(hxy2-hxy))), 0.5 )  #Information measure of correlation 2
-        print  (hxy2-hxy)
+        #print  (hxy2-hxy)
+        #print 'features time',offset, time.time() - start
         
         return g, features_vector
-    """    
-    def compute_features(self):
+        
+    def compute_features2(self):
         for i,offset in enumerate(self.offsets):
             if self.save_glcms:
                 self.glcm_matrices[:,:,i], self.features_matrix[i,:] = self._compute_features_(offset)
             else:
                 _,self.features_matrix[i,:] = self._compute_features_(offset)
-    """
+    
     def compute_features(self):
-        pool = Pool(processes=self.n_offsets)
+        pool = Pool()
         ds = [{_HARALICK :self, _OFFSETWA:offset} for offset in self.offsets]
         i = 0
-        for res in pool.map(compute_fake,ds):
+        for res in pool.imap(compute_fake,ds):
             if self.save_glcms:
                 self.glcm_matrices[:,:,i], self.features_matrix[i,:] = res
             else:
                 self.features_matrix[i,:] = res[1]
             i +=1
+        pool.close()
         
 
        
@@ -202,18 +207,54 @@ class Haralick_Features():
                 
     def get_features_at_offset(self, n_offset):
         return Texture_Features(self,0)
-
+"""
 import time
-image_test = np.random.randint(-1024,1024, size = (200,200,200))
+image_test = np.random.randint(-1024,1024, size = (300,300,300))
 #image_test = np.random.randint(0,high=4, size=(100,100,100))
-mask = np.zeros((200,200,200))
-mask[50:-50,50:-50,50:-50] = np.random.randint(0,2, size=(100,100,100))
+mask = np.zeros((300,300,300))
+mask[50:-50,50:-50,50:-50] = np.random.randint(0,2, size=(200,200,200))
 har = Haralick_Features(image_test, bins=256, normalization=True,  mask=mask, save_glcm_matrices=True)
 print har.image.shape
 start = time.time()
 har.compute_features()
 print 'process time',time.time() - start
 print har.get_average_features()
+"""
+
+"""
+import time
+start = time.time()
+image2_test = [np.random.randint(-1024,1024, size = (3,3,3)).astype(dtype = np.int16) for i in range(49152) ]
+for image_test  in image2_test:
+    har = Haralick_Features(image_test, bins=256, normalization=True, save_glcm_matrices=False)
+    har.compute_features()
+print 'process time',time.time() - start
+"""
+"""
+ogg = generate_default_offsets()
+start = time.time()
+image_test = np.random.randint(-1024,1024, size = (3,3,3)).astype(dtype = np.int16)
+har = Haralick_Features(image_test, bins=256,offsets = ogg,  normalization=True, save_glcm_matrices=False)
+har.compute_features()
+print 'process time',time.time() - start
+"""
+image2_test = [np.random.randint(-1024,1024, size = (3,3,3)).astype(dtype = np.int16) for i in range(50) ]
+#image_test = np.random.randint(-1024,1024, size = (3,3,3))
+start = time.time()
+for i, image_test  in enumerate(image2_test):
+    print i
+    har = Haralick_Features(image_test, bins=16, normalization=True, save_glcm_matrices=False)
+    har.compute_features()
+print "map",time.time() - start
+"""
+start = time.time()
+for image_test  in image2_test:
+    har2 = Haralick_Features(image_test, bins=256, normalization=True, save_glcm_matrices=False)
+    har.compute_features2()
+print "lineal",time.time() - start
+"""
+
+    
 
                 
 

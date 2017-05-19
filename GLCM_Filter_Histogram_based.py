@@ -8,6 +8,7 @@ Initial
 import numpy as np
 from scipy.ndimage.filters import generic_filter
 import SimpleITK
+import time
 
 def generate_default_offsets(dim = 3, distance = 1): #TODO multidimensional
     if not (1 < dim <= 3):
@@ -61,28 +62,65 @@ class Image_To_GLCM:
         if not isinstance(offset, tuple) or self.image.ndim != len(offset) or np.max(np.abs(offset)) > self.image.shape[np.argmax(np.abs(offset))]/2:
             raise Exception('Incorrect offset offset as tuple with the coordinates')
         self.__offset = offset
-        
+                                               
+    
     def glcm(self):
-        """
-        Compute the GLCM matrix at the offset previously established
+        #good_neigs = np.ones(self.image.shape,dtype=np.bool)
+        #bad_neigh must be bigger than the axis limmit
+        #bad_neig = np.max(self.min_max) + 1
+        #footprint = self.__create_footprint__()
         
-        Returns
-        ---------
-        The glcm matrix
-        """
-        good_neigs = np.ones(self.image.shape,dtype=np.bool)
-        bad_neig = np.max(self.image) + 1
-        footprint = self.__create_footprint__()
-                         
+                    
         if self.mask is not None:
             mask_neigs = generic_filter(self.mask , lambda x:x, footprint=footprint, mode='constant', cval= 0)
             good_neigs[np.logical_or(mask_neigs == 0 , self.mask == 0)] = False
-            
+        
+        #start = time.time()    
+        #neigs = generic_filter(self.image , lambda x:x, footprint=footprint, mode='constant', cval= bad_neig)
+        
+        #print 'pregistogram',self.__offset, time.time() - start
+        #good_neigs = np.logical_and(good_neigs, (neigs < bad_neig))
+        
+
+        return np.histogramdd(np.column_stack((crop_per_offset(self.image, np.multiply(self.__offset,-1)).ravel(),
+                                               crop_per_offset(self.image,self.__offset ).ravel())),bins=self.bins,
+                                               range = tuple([min_max for min_max in self.min_max]),
+                                               normed=self.normalization)[0]
+
+    
+
+
+def crop_per_offset(mat, offset):
+    crop = [range(off,mat.shape[dimension] ) if off > 0 else range(0,mat.shape[dimension] - np.abs(off) )
+    for dimension,off in enumerate(offset) ]
+    
+    return mat[np.ix_(*crop)]
+
+image_test2 = np.random.randint(0,4, size = (3,3,3))
+a = Image_To_GLCM(image_test2,(-1,0,1), bins=4, normalization=False)
+print a.glcm()
+
+"""   
+    def glcm(self):
+        good_neigs = np.ones(self.image.shape,dtype=np.bool)
+        #bad_neigh must be bigger than the axis limmit
+        bad_neig = np.max(self.min_max) + 1
+        footprint = self.__create_footprint__()
+        
+                    
+        if self.mask is not None:
+            mask_neigs = generic_filter(self.mask , lambda x:x, footprint=footprint, mode='constant', cval= 0)
+            good_neigs[np.logical_or(mask_neigs == 0 , self.mask == 0)] = False
+        
+        #start = time.time()    
         neigs = generic_filter(self.image , lambda x:x, footprint=footprint, mode='constant', cval= bad_neig)
+        
+        #print 'pregistogram',self.__offset, time.time() - start
         good_neigs = np.logical_and(good_neigs, (neigs < bad_neig))
+        
 
         return np.histogramdd(np.column_stack((self.image[good_neigs].ravel(),
                                                neigs[good_neigs].ravel())),
                                                 bins=self.bins,range = tuple([min_max for min_max in self.min_max]),normed=self.normalization)[0]
-
-
+ 
+"""        
