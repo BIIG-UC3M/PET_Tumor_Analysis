@@ -207,6 +207,8 @@ class Haralick_Features():
                 
     def get_features_at_offset(self, n_offset):
         return Texture_Features(self,0)
+
+if __name__ == "__main__":
 """
 import time
 image_test = np.random.randint(-1024,1024, size = (300,300,300))
@@ -238,14 +240,14 @@ har = Haralick_Features(image_test, bins=256,offsets = ogg,  normalization=True,
 har.compute_features()
 print 'process time',time.time() - start
 """
-image2_test = [np.random.randint(-1024,1024, size = (100,200,200)).astype(dtype = np.int16) for i in range(10) ]
-#image_test = np.random.randint(-1024,1024, size = (3,3,3))
-start = time.time()
-for i, image_test  in enumerate(image2_test):
-    #print i
-    har = Haralick_Features(image_test, bins=16, normalization=True, save_glcm_matrices=False)
-    har.compute_features()
-print "map",time.time() - start
+    image2_test = [np.random.randint(-1024,1024, size = (100,200,200)).astype(dtype = np.int16) for i in range(10) ]
+    #image_test = np.random.randint(-1024,1024, size = (3,3,3))
+    start = time.time()
+    for i, image_test  in enumerate(image2_test):
+        #print i
+        har = Haralick_Features(image_test, bins=16, normalization=True, save_glcm_matrices=False)
+        har.compute_features()
+    print "map",time.time() - start
 """
 start = time.time()
 for image_test  in image2_test:

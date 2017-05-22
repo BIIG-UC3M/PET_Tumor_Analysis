@@ -81,20 +81,16 @@ def crop_per_offset(mat_, offset, mask = None, cval = 1):
     crop = [range(off,mat.shape[dimension] ) if off > 0 else range(0,mat.shape[dimension] - np.abs(off) )
     for dimension,off in enumerate(offset) ]
     
-    
     return mat[np.ix_(*crop)]
 
     
 if __name__ == "__main__":
-    image_test2 = np.random.randint(0,4, size = (3,3,3))
-    mask = np.random.randint(0,2, size = (3,3,3))
-    a = Image_To_GLCM(image_test2,(0,0,1), bins=4, normalization=False, mask=mask)
-    a2 = Image_To_GLCM(image_test2,(0,0,1), bins=4, normalization=False)
-    #print mask,'\n'
-    #print image_test2,'\n'
+    image_test2 = np.random.randint(0,4, size = (3,5,5))
+    mask = np.random.randint(0,2, size = (3,5,5))
+    a = Image_To_GLCM(image_test2,(0,0,-1), bins=4, normalization=False, mask=mask)
+    a2 = Image_To_GLCM(image_test2,(0,0,-1), bins=4, normalization=False)
     print a2.glcm(),'\n'
     print a.glcm(),'\n'
-    #print image_test2,'\n'
 
 """   
     def glcm(self):
