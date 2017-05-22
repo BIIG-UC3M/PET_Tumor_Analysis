@@ -65,40 +65,36 @@ class Image_To_GLCM:
                                                
     
     def glcm(self):
-        #good_neigs = np.ones(self.image.shape,dtype=np.bool)
-        #bad_neigh must be bigger than the axis limmit
-        #bad_neig = np.max(self.min_max) + 1
-        #footprint = self.__create_footprint__()
-        
-                    
-        if self.mask is not None:
-            mask_neigs = generic_filter(self.mask , lambda x:x, footprint=footprint, mode='constant', cval= 0)
-            good_neigs[np.logical_or(mask_neigs == 0 , self.mask == 0)] = False
-        
-        #start = time.time()    
-        #neigs = generic_filter(self.image , lambda x:x, footprint=footprint, mode='constant', cval= bad_neig)
-        
-        #print 'pregistogram',self.__offset, time.time() - start
-        #good_neigs = np.logical_and(good_neigs, (neigs < bad_neig))
-        
-
-        return np.histogramdd(np.column_stack((crop_per_offset(self.image, np.multiply(self.__offset,-1)).ravel(),
-                                               crop_per_offset(self.image,self.__offset ).ravel())),bins=self.bins,
+        return np.histogramdd(np.column_stack((crop_per_offset(self.image, np.multiply(self.__offset,-1), mask=self.mask, cval=np.max(self.min_max) + 100).ravel(),
+                                               crop_per_offset(self.image,self.__offset, mask=self.mask,cval=np.max(self.min_max) + 100 ).ravel())),bins=self.bins,
                                                range = tuple([min_max for min_max in self.min_max]),
                                                normed=self.normalization)[0]
 
     
 
 
-def crop_per_offset(mat, offset):
+def crop_per_offset(mat_, offset, mask = None, cval = 1):
+    mat = mat_.copy()
+    if mask is not None:
+        mat[mask == 0] = cval
+
     crop = [range(off,mat.shape[dimension] ) if off > 0 else range(0,mat.shape[dimension] - np.abs(off) )
     for dimension,off in enumerate(offset) ]
     
+    
     return mat[np.ix_(*crop)]
 
-image_test2 = np.random.randint(0,4, size = (3,3,3))
-a = Image_To_GLCM(image_test2,(-1,0,1), bins=4, normalization=False)
-print a.glcm()
+    
+if __name__ == "__main__":
+    image_test2 = np.random.randint(0,4, size = (3,3,3))
+    mask = np.random.randint(0,2, size = (3,3,3))
+    a = Image_To_GLCM(image_test2,(0,0,1), bins=4, normalization=False, mask=mask)
+    a2 = Image_To_GLCM(image_test2,(0,0,1), bins=4, normalization=False)
+    #print mask,'\n'
+    #print image_test2,'\n'
+    print a2.glcm(),'\n'
+    print a.glcm(),'\n'
+    #print image_test2,'\n'
 
 """   
     def glcm(self):

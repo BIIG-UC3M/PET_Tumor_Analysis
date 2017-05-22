@@ -238,11 +238,11 @@ har = Haralick_Features(image_test, bins=256,offsets = ogg,  normalization=True,
 har.compute_features()
 print 'process time',time.time() - start
 """
-image2_test = [np.random.randint(-1024,1024, size = (3,3,3)).astype(dtype = np.int16) for i in range(50) ]
+image2_test = [np.random.randint(-1024,1024, size = (100,200,200)).astype(dtype = np.int16) for i in range(10) ]
 #image_test = np.random.randint(-1024,1024, size = (3,3,3))
 start = time.time()
 for i, image_test  in enumerate(image2_test):
-    print i
+    #print i
     har = Haralick_Features(image_test, bins=16, normalization=True, save_glcm_matrices=False)
     har.compute_features()
 print "map",time.time() - start
