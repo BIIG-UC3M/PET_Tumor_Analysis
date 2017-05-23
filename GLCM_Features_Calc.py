@@ -76,10 +76,10 @@ class Texture_Features:
 class Haralick_Features():
     def __init__(self,image, mask = None, offsets = None, distance = 1, bins = 256, axis_range = None, normalization = True, save_glcm_matrices = True):      
         self.n_feats = 22
-        
+        self.image = SimpleITK.GetArrayFromImage(image) if isinstance(image, SimpleITK.Image) else image
         if mask is None:
             self.mask = mask
-            self.image = image
+            #self.image = image
         else:
             ## Crop the image, can save a lot of memory. Indices by pointer
             b = np.where(mask)
