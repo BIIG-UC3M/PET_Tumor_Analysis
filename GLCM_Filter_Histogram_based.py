@@ -83,6 +83,12 @@ def crop_per_offset(mat_, offset, mask = None, cval = 1):
     
     return mat[np.ix_(*crop)]
 
+def crop_image(image, mask):
+    mask = mask > 0
+    coords = np.argwhere(mask)
+    z0,x0, y0 = coords.min(axis=0)
+    z1,x1, y1 = coords.max(axis=0) + 1   # slices are exclusive at the top
+    return image[z0:z1, x0:x1, y0:y1], mask[z0:z1, x0:x1, y0:y1]
     
 if __name__ == "__main__":
     image_test2 = np.random.randint(0,4, size = (3,5,5))

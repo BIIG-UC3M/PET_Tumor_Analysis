@@ -6,7 +6,6 @@ Initial
 """
 from GLCM_Filter_Histogram_based import Image_To_GLCM, generate_default_offsets
 import numpy as np
-import warnings
 import SimpleITK
 from multiprocessing import  Process, Pool
 import time
@@ -14,15 +13,10 @@ import time
 _HARALICK = "HARALICK"
 _OFFSETWA = "offset_workaround_parrallel_computing"
 
-def compute_harlaick_feats(haralick_dic):
-    print "here"
-    Haralick_Features._compute_features_(offset)
-
 def compute_fake(haralick_dic):
     "Print in fake"
     Haralick = haralick_dic['HARALICK']
-    
-    return  Haralick._compute_features_(haralick_dic["offset_workaround_parrallel_computing"])
+    return  Haralick._compute_features_(haralick_dic[_OFFSETWA])
     
 
 def uniform_quantization(image,l = 256, g_max = 255.0, g_min = 0, out_type = np.uint8):
@@ -46,9 +40,11 @@ class Texture_Features:
     ,'Dissimilarity','Homogenity1','InverseDifferentMomentNormalized','MaximumProbability','InformationMeasureCorrelation1'
     ,'InformationMeasureCorrelation2','InverseDifferenceNormalized']
     def __init__(self,Haralick_Features, n_offset = 0):
-        if n_offset < len(Haralick_Features.n_offsets):
+        self.n_offset = n_offset
+        if -1 < n_offset < Haralick_Features.n_offsets:
             features_vector = Haralick_Features.features_matrix[n_offset]
         else:
+            self.n_offset = -1
             features_vector = Haralick_Features.get_average_features()
         self.Energy = features_vector[0]
         self.Contrast = features_vector[1]
@@ -62,7 +58,7 @@ class Texture_Features:
         self.Difference_Variance = features_vector[9]
         self.Difference_Entropy = features_vector[10]
         self.Autocorrelation = features_vector[11]
-        self.Correlation1 = features_vector[12]
+        self.Correlation2 = features_vector[12]
         self.Cluster_Prominance = features_vector[13]
         self.Cluster_Shade = features_vector[14]
         self.Dissimilarity = features_vector[15]
@@ -72,6 +68,14 @@ class Texture_Features:
         self.Information_Measure_Correlation_1 = features_vector[19]
         self.Information_Measure_Correlation_2 = features_vector[20]
         self.Inverse_Difference_Normalized = features_vector[21]
+        
+    def get_texture_feats_as_dicc(self):
+        return {'n_offset':self.n_offset,'Energy':self.Energy, 'Contrast':self.Contrast,'Correlation1':self.Correlation1, 'Sum_of_Squares':self.Sum_Of_Squares,
+                'Homogenity_2':self.Homogenity_2,'Sum_Average':self.Sum_Average,'Sum_Variance':self.Sum_Variance,'Sum_Entropy':self.Sum_Entropy,
+                'Entropy':self.Entropy, 'Difference_Variance':self.Difference_Variance,'Difference_Entropy':self.Difference_Entropy,'Autocorrelation':self.Autocorrelation,
+                'Correlation2':self.Correlation2, 'Cluster_Prominance':self.Cluster_Prominance,'Cluster_Shade':self.Cluster_Shade,'Dissimilarity':self.Dissimilarity, 
+                'Homogenity_1':self.Homogenity_1,'Inverse_Different_Moment_Normalized':self.Inverse_Different_Moment_Normalized, 'Maximum_Probability':self.Maximum_Probability,
+                'Information_Measure_Correlation_1':self.Information_Measure_Correlation_1,'Information_Measure_Correlation_2':self.Information_Measure_Correlation_2,'Inverse_Difference_Normalized':self.Inverse_Difference_Normalized }
 
 class Haralick_Features():
     def __init__(self,image, mask = None, offsets = None, distance = 1, bins = 256, axis_range = None, normalization = True, save_glcm_matrices = True):      
@@ -175,9 +179,6 @@ class Haralick_Features():
         features_vector[19] = (hxy - hxy1)/max(hx,hy)  #Information measure of correlation 1
         #TO aovid sqrt of negative numbers its took the ||hxy2-hxy||. Not a clue about the best approach to this
         features_vector[20] = np.power(1 - np.exp(-2*(np.abs(hxy2-hxy))), 0.5 )  #Information measure of correlation 2
-        #print  (hxy2-hxy)
-        #print 'features time',offset, time.time() - start
-        
         return g, features_vector
         
     def compute_features2(self):
@@ -198,15 +199,12 @@ class Haralick_Features():
                 self.features_matrix[i,:] = res[1]
             i +=1
         pool.close()
-        
-
-       
                 
     def get_average_features(self):
         return np.nanmean(self.features_matrix, axis=0)
                 
-    def get_features_at_offset(self, n_offset):
-        return Texture_Features(self,0)
+    def get_features_at_offset(self, n_offset = -1):
+        return Texture_Features(self,n_offset)
 
 if __name__ == "__main__":
     image2_test = [np.random.randint(-1024,1024, size = (10,10,10)).astype(dtype = np.int16) for i in range(10) ]
