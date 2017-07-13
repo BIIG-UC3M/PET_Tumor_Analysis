@@ -11,6 +11,7 @@ import time
 import numpy as np
 import SimpleITK
 from GLCM_Features_Calc import Haralick_Features
+from GLCM_Filter_Histogram_based import generate_default_offsets
 
 def argus2SimpleITK(path):
   """
@@ -67,24 +68,45 @@ def read_dicom(path):
     reader = SimpleITK.ImageSeriesReader()
     reader.SetFileNames(reader.GetGDCMSeriesFileNames(path))
     return reader.Execute()
+    
+def merge_dicts(*dict_args):
+    """
+    Given any number of dicts, shallow copy and merge into a new dict,
+    precedence goes to key value pairs in latter dicts.
+    """
+    result = {}
+    for dictionary in dict_args:
+        result.update(dictionary)
+    return result
 
-def get_multilabel_textures(image,multi_label_mask, bins = 256):
+def get_multilabel_textures(image,multi_label_mask, bins = 256,background_label = 0, distance = 1, extra_info_as_dicc = {}):
+    image = get_arrayImage(image)
+    multi_label_mask = get_arrayImage(multi_label_mask)
+    labels = np.unique(multi_label_mask)
+    all_labels_info = []
+    print len(labels)
+    for label in np.delete(labels, np.argwhere(labels == background_label)):
+        print 'label',label
+        har_feats = Haralick_Features(image, mask=multi_label_mask, mask_val=label, bins=bins, distance=distance)
+        #har_feats.compute_features()
+        sup_feats = har_feats.get_features_all_offsets()
+        for i,sup in enumerate(sup_feats):
+            sup_feats[i] = merge_dicts(sup, {'Label':label},extra_info_as_dicc)
+        all_labels_info += sup_feats
+    return all_labels_info
     
 
 if __name__ == "__main__":
     labels_path = '/media/pmacias/DATA1/Lessions_Test/mask_lesions_STUDY_4863_R62_8SEPTEMBER2013_16W.mhd'
     raw_image_path = '/media/pmacias/DATA1/Lessions_Test/STUDY_4863_R62_8SEPTEMBER2013_16W.mhd'
     
-    raw_image = SimpleITK.ReadImage(raw_image_path)
-    labels = SimpleITK.ReadImage(labels_path)
-    
-    raw_image = SimpleITK.GetArrayFromImage(raw_image)
-    labels = SimpleITK.GetArrayFromImage(labels)
+#    raw_image = SimpleITK.ReadImage(raw_image_path)
+#    labels = SimpleITK.ReadImage(labels_path)
+#    
+#    raw_image = SimpleITK.GetArrayFromImage(raw_image)
+#    labels = SimpleITK.GetArrayFromImage(labels)
     start = time.time()
-    for label in np.unique(labels)[1:]:
-        c = Haralick_Features(raw_image, mask=labels, mask_val=label, bins=256)
-        c.compute_features()
-        print label, c.get_average_features()
+    a =  get_multilabel_textures(raw_image_path, labels_path, extra_info_as_dicc= {'todo':'Es','un':'cagarro'})
     print 'Time',time.time() - start
 #    
     

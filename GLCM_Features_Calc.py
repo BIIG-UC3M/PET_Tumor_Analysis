@@ -102,6 +102,7 @@ class Haralick_Features():
         self.save_glcms = save_glcm_matrices
         self.glcm_matrices = np.zeros([self.bins, self.bins, self.n_offsets]) if self.save_glcms else None
         self.features_matrix = np.zeros((self.n_offsets,self.n_feats))
+        self.distance = distance
         
     def _compute_features_(self, offset):
         #print "Computing offset",offset
