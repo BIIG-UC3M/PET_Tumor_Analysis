@@ -8,6 +8,7 @@ from GLCM_Filter_Histogram_based import Image_To_GLCM, generate_default_offsets
 import numpy as np
 import SimpleITK
 from multiprocessing import  Process, Pool
+from matplotlib import pyplot as plt
 import time
 
 _HARALICK = "HARALICK"
@@ -78,19 +79,20 @@ class Texture_Features:
                 'Information_Measure_Correlation_1':self.Information_Measure_Correlation_1,'Information_Measure_Correlation_2':self.Information_Measure_Correlation_2,'Inverse_Difference_Normalized':self.Inverse_Difference_Normalized }
 
 class Haralick_Features():
-    def __init__(self,image, mask = None, offsets = None, distance = 1, bins = 256, axis_range = None, normalization = True, save_glcm_matrices = True):      
+    def __init__(self,image, mask = None, mask_val = 1, offsets = None, distance = 1, bins = 256, axis_range = None, normalization = True, save_glcm_matrices = True):      
         self.n_feats = 22
-        self.image = SimpleITK.GetArrayFromImage(image) if isinstance(image, SimpleITK.Image) else image
+        self.image = SimpleITK.GetArrayFromImage(image) if isinstance(image, SimpleITK.Image) else image  
         if mask is None:
             self.mask = mask
             #self.image = image
         else:
             ## Crop the image, can save a lot of memory. Indices by pointer
-            b = np.where(mask)
+            b = np.where(mask == mask_val)
             crop = [range(np.min(z), np.max(z)+1)  for z in b]
             self.mask = mask[np.ix_( *crop )]
             self.image = image[np.ix_( *crop )]
-            
+        self.mask_val = mask_val
+        self.mask[self.mask != self.mask_val] = 0 #cleaning shit withinin the smaller version
         self.bins = bins
         self.normalization = normalization
         image_dim = image.ndim if isinstance(image, np.ndarray) else image.GetDimension()
@@ -104,7 +106,7 @@ class Haralick_Features():
     def _compute_features_(self, offset):
         #print "Computing offset",offset
         g = Image_To_GLCM(self.image, offset, bins = self.bins, min_max = self.axis_range,
-                          mask=self.mask, normalization=self.normalization)
+                          mask=self.mask,mask_val=self.mask_val, normalization=self.normalization)
         #start = time.time()
         g = g.glcm()
         #print 'glcm time',offset, time.time() - start
@@ -119,7 +121,6 @@ class Haralick_Features():
         abs_IminusJ = np.abs(IminusJ)
         IplusJ = I+J
         
-    
         mu_x = np.apply_over_axes(np.sum, (I * g), axes=(0, 1))[0, 0]
         mu_y = np.apply_over_axes(np.sum, (J * g), axes=(0, 1))[0, 0] 
         diff_i = I - mu_x
@@ -205,16 +206,45 @@ class Haralick_Features():
                 
     def get_features_at_offset(self, n_offset = -1):
         return Texture_Features(self,n_offset)
+    
+    def get_features_all_offsets(self):
+        """
+        All offsets and average features within a list
+        """
+        return [self.get_features_at_offset(n_offset=offset_n).get_texture_feats_as_dicc() for offset_n in range(-1,self.n_offsets)]
+            
+        
+    def get_glcm_at_offset(self,n_offset = -1, show_glcm = True):
+        if -1 < n_offset < self.n_offsets:
+            g = self.glcm_matrices[:,:,n_offset]
+        else:
+            g = np.mean(self.glcm_matrices, axis = 2)
+        if show_glcm:
+            plt.imshow(g, interpolation='nearest')
+        return g
 
 if __name__ == "__main__":
-    image2_test = [np.random.randint(-1024,1024, size = (10,10,10)).astype(dtype = np.int16) for i in range(10) ]
-    #image_test = np.random.randint(-1024,1024, size = (3,3,3))
-    start = time.time()
-    for i, image_test  in enumerate(image2_test):
-        #print i
-        har = Haralick_Features(image_test, bins=16, normalization=True, save_glcm_matrices=False)
-        har.compute_features()
-    print "map",time.time() - start
+#    image2_test = [np.random.randint(-1024,1024, size = (10,10,10)).astype(dtype = np.int16) for i in range(10) ]
+#    #image_test = np.random.randint(-1024,1024, size = (3,3,3))
+#    start = time.time()
+#    for i, image_test  in enumerate(image2_test):
+#        #print i
+#        har = Haralick_Features(image_test, bins=16, normalization=True, save_glcm_matrices=False)
+#        har.compute_features()
+#    print "map",time.time() - start
+    
+    image46_path = '/tmp/les_46.mhd'
+    mask46_path = '/tmp/mask_46.mhd'
+    image48_path = '/tmp/les_48.mhd'
+    mask48_path = '/tmp/mask_48.mhd'
+    image_46 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(image46_path))
+    mask_46 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(mask46_path))
+    image_48 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(image48_path))
+    mask_48 = SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(mask48_path))
+    image46_feats = Haralick_Features(image_46, mask=mask_46, mask_val=46, normalization=True, bins=256,save_glcm_matrices=True)
+    image48_feats = Haralick_Features(image_48, mask=mask_48, mask_val=48, normalization=True, bins=256,save_glcm_matrices=True)
+    image46_feats.compute_features()
+    image48_feats.compute_features()
 """
 import time
 image_test = np.random.randint(-1024,1024, size = (300,300,300))

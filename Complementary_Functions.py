@@ -7,6 +7,7 @@ Created on Thu Jul  6 10:22:23 2017
 
 import os
 import glob
+import time
 import numpy as np
 import SimpleITK
 from GLCM_Features_Calc import Haralick_Features
@@ -58,25 +59,33 @@ def argus2SimpleITK(path):
   itkImage.SetOrigin(offset)
   itkImage.SetSpacing(spacing)
   return itkImage
-  
+
+def get_arrayImage(image):
+    return SimpleITK.GetArrayFromImage(SimpleITK.ReadImage(image)) if isinstance(image,str) else SimpleITK.GetArrayFromImage(image) if isinstance(image, SimpleITK.Image) else image
 
 def read_dicom(path):
     reader = SimpleITK.ImageSeriesReader()
     reader.SetFileNames(reader.GetGDCMSeriesFileNames(path))
     return reader.Execute()
+
+def get_multilabel_textures(image,multi_label_mask, bins = 256):
     
 
 if __name__ == "__main__":
-    raw_image_path = '/media/pmacias/DATA1/Lessions_Test/mask_lesions_STUDY_4863_R62_8SEPTEMBER2013_16W.mhd'
-    labels_path = '/media/pmacias/DATA1/Lessions_Test/STUDY_4863_R62_8SEPTEMBER2013_16W.mhd'
+    labels_path = '/media/pmacias/DATA1/Lessions_Test/mask_lesions_STUDY_4863_R62_8SEPTEMBER2013_16W.mhd'
+    raw_image_path = '/media/pmacias/DATA1/Lessions_Test/STUDY_4863_R62_8SEPTEMBER2013_16W.mhd'
     
     raw_image = SimpleITK.ReadImage(raw_image_path)
     labels = SimpleITK.ReadImage(labels_path)
     
     raw_image = SimpleITK.GetArrayFromImage(raw_image)
     labels = SimpleITK.GetArrayFromImage(labels)
-    c = Haralick_Features(raw_image, mask=a, bins=16)
-    c.compute_features2()
+    start = time.time()
+    for label in np.unique(labels)[1:]:
+        c = Haralick_Features(raw_image, mask=labels, mask_val=label, bins=256)
+        c.compute_features()
+        print label, c.get_average_features()
+    print 'Time',time.time() - start
 #    
     
 #    main_path = "/media/pmacias/DATA1/amunoz/LOTE_1/Classified_lesions/"

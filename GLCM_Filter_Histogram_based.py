@@ -26,7 +26,7 @@ def generate_default_offsets(dim = 3, distance = 1): #TODO multidimensional
 
 class Image_To_GLCM:
     
-    def __init__(self, image, offset, bins = 256, min_max = None, mask = None, normalization = True):
+    def __init__(self, image, offset, bins = 256, min_max = None, mask = None, mask_val = 1, normalization = True):
         """
         offset as tuple with the coordinates. numpy ordered. From the center point
         """
@@ -35,6 +35,7 @@ class Image_To_GLCM:
         self.set_offset(offset)
         self.bins = bins
         self.mask = mask
+        self.mask_val = mask_val
         self.normalization = normalization
         #bins from to to each axes. GLCM is 2 by 2 histogram so that's why we use two axes
         self.histogram_axis = 2
@@ -65,31 +66,39 @@ class Image_To_GLCM:
                                                
     
     def glcm(self):
-        return np.histogramdd(np.column_stack((crop_per_offset(self.image, np.multiply(self.__offset,-1), mask=self.mask, cval=np.max(self.min_max) + 100).ravel(),
-                                               crop_per_offset(self.image,self.__offset, mask=self.mask,cval=np.max(self.min_max) + 100 ).ravel())),bins=self.bins,
+        return np.histogramdd(np.column_stack((crop_per_offset(self.image, np.multiply(self.__offset,-1), mask=self.mask, mask_val=self.mask_val, cval=np.max(self.min_max) + 100).ravel(),
+                                               crop_per_offset(self.image,self.__offset, mask=self.mask,mask_val=self.mask_val,cval=np.max(self.min_max) + 100 ).ravel())),bins=self.bins,
                                                range = tuple([min_max for min_max in self.min_max]),
                                                normed=self.normalization)[0]
 
     
 
 
-def crop_per_offset(mat_, offset, mask = None, cval = 1):
+def crop_per_offset(mat_, offset, mask = None, mask_val = 1, cval = -1):
     mat = mat_.copy()
     if mask is not None:
-        mat[mask == 0] = cval
+        mat[mask != mask_val] = cval
 
     crop = [range(off,mat.shape[dimension] ) if off > 0 else range(0,mat.shape[dimension] - np.abs(off) )
     for dimension,off in enumerate(offset) ]
     
     return mat[np.ix_(*crop)]
-
-def crop_image(image, mask):
-    mask = mask > 0
-    coords = np.argwhere(mask)
-    z0,x0, y0 = coords.min(axis=0)
-    z1,x1, y1 = coords.max(axis=0) + 1   # slices are exclusive at the top
-    return image[z0:z1, x0:x1, y0:y1], mask[z0:z1, x0:x1, y0:y1]
     
+""" This is inline already
+def crop_image(image, mask, mask_val = 1): #TODO for each dimension. As in crop_per_offset
+    mask = mask == mask_val
+    coords = np.argwhere(mask)
+    if image.ndim == 3:
+        z0,x0, y0 = coords.min(axis=0)
+        z1,x1, y1 = coords.max(axis=0) + 1   # slices are exclusive at the top
+        return image[z0:z1, x0:x1, y0:y1], mask[z0:z1, x0:x1, y0:y1]
+    elif image.ndim == 2:
+        x0, y0 = coords.min(axis=0)
+        x1, y1 = coords.max(axis=0) + 1   # slices are exclusive at the top
+        return image[x0:x1, y0:y1], mask[x0:x1, y0:y1]
+    else:
+        print "Cannot crop a",image.ndim,"dimensional image"
+"""    
 if __name__ == "__main__":
     image_test2 = np.random.randint(0,4, size = (3,5,5))
     mask = np.random.randint(0,2, size = (3,5,5))
